@@ -1,7 +1,7 @@
 from enum import unique
 from unicodedata import name
 from fastapi import FastAPI, Depends, HTTPException
-from models import Books, Students, Inventory, Borrow
+
 
 import sqlalchemy
 from fastapi import FastAPI, Depends
@@ -153,8 +153,9 @@ async def update_inventory(store: Inventory):
     record = await database.fetch_all(query)
     for i in record:
         if i[1] == bk_id:
-            query = inventory.update().where(book_id = store.book_id).values(count_books = store.count_books)
-            raise HTTPException(status_code=100, detail = "Book already existed. Changed count of books")
+            query = inventory.update().where(inventory.c.book_id == bk_id).values(count_books = store.count_books)
+            record = await database.execute(query)
+            raise HTTPException(status_code=200, detail = "Book already existed. Changed count of books")
     rde = inventory.insert().values(
         book_id = store.book_id,
         count_books = store.count_books,
