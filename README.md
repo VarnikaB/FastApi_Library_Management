@@ -6,20 +6,32 @@ First download this repo in your system. Make sure you have required libraries s
 
 ### Table Structure
 1. Books:
-   ID - Integer and Primary Key
-   Book Name - String
+   | Field         | Data Type               | 
+   | ------------- |:-----------------------:| 
+   |  ID           | Integer and Primary Key | 
+   | Book Name     | String                  |  
+   
 2. Students:
-   ID - Integer and Primary Key
-   Name - String
+   | Field         | Data Type               | 
+   | ------------- |:-----------------------:| 
+   |  ID           | Integer and Primary Key | 
+   |  Name         | String                  |  
+  
 3. Inventory:
-   ID - Integer and Primary Key
-   Book_ID - Integer and Foreign Key(Books - ID)
-   Count_Books - Integer
-   Borrow_Count - Integer
+   | Field         | Data Type                          | 
+   | ------------- |:----------------------------------:| 
+   |  ID           | Integer and Primary Key            | 
+   |  Book_ID      | Integer and Foreign Key(Books - ID)| 
+   |  Count_Books           | Integer             |
+   |  Borrow_Count           | Integer             |
+   
 4. Borrow:
-   ID - Integer and Primary Key
-   StuID - Integer and Foreign Key(Students - ID)
-   BookID1 - Integer
-   BookID1 - Integer
-   BookID1 - Integer
+   | Field         | Data Type                          | 
+   | ------------- |:----------------------------------:| 
+   |  ID           | Integer and Primary Key            | 
+   |  Stu_ID      | Integer and Foreign Key(Students - ID)| 
+   |  BookID1           | Integer             |
+   |  BookID2           | Integer             |
+   |  BookID3           | Integer             |
+   
    
