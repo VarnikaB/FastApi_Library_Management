@@ -70,10 +70,8 @@ borrow = sqlalchemy.Table(
     'borrow',
     metadata,
     sqlalchemy.Column('id', sqlalchemy.Integer, primary_key = True),
-    sqlalchemy.Column('stu_id', sqlalchemy.Integer, unique = True),
-    sqlalchemy.Column('book_id1', sqlalchemy.Integer),
-    sqlalchemy.Column('book_id2', sqlalchemy.Integer),
-    sqlalchemy.Column('book_id3', sqlalchemy.Integer)
+    sqlalchemy.Column('stu_id', sqlalchemy.Integer),
+    sqlalchemy.Column('book_id', sqlalchemy.Integer)    
 )
 
 engine = sqlalchemy.create_engine(DATABASE_URL, connect_args = {'check_same_thread':False})
@@ -93,7 +91,7 @@ async def connect():
 
 @app.get("/")
 async def root():
-    return {"api added": "goto /doc for execution"}
+    return {"api added": "goto /docs for api execution"}
 
 @app.get("/books")
 async def root():
@@ -148,7 +146,7 @@ async def update_inventory(store: Inventory):
     dic = dict(record)
     #print(dic)
     if bk_id not in dic:
-        raise HTTPException(status_code=404, detail="Book does not exist. First add book")
+        raise HTTPException(status_code=404, detail="Book does not exist. Add book")
     query = inventory.select()
     record = await database.fetch_all(query)
     for i in record:
@@ -167,8 +165,56 @@ async def update_inventory(store: Inventory):
     return record
 
 @app.post("/borrowbook")
-async def update_inventory(bw: Borrow):
-    std_id = bw.stu_id
+async def update_inventory(std_id: int, book_name: str):
     query = students.select()
     record = await database.fetch_all(query)
     dic = dict(record)
+    if std_id not in dic:
+        raise HTTPException(status_code=404, detail="Student does not exist. Add new student")
+    query = books.select()
+    record = await database.fetch_all(query)
+    dic = dict(record)
+    book_id = -1
+    for i in dic:
+        if dic[i].lower() == book_name.lower():
+            book_id = i
+            break
+    if book_id == -1:
+        raise HTTPException(status_code=404, detail="Book does not exist. Add new Book")
+    query = borrow.select().where(borrow.c.stu_id == std_id)
+    record = await database.fetch_all(query)
+    if len(record) == 3:
+        raise HTTPException(status_code=402, detail="Student has already approached limit. Cannot borrow more books.")
+    query = inventory.select().where(inventory.c.book_id == book_id)
+    stmt = inventory.update().values(borrow_count = inventory.c.borrow_count + 1, count_books = inventory.c.count_books - 1 ).where(inventory.c.book_id == book_id)
+    record = await database.execute(stmt)
+    query = inventory.select().where(inventory.c.book_id == book_id)
+    record = await database.fetch_one(query)
+    print(record)
+    if record[2] == 0:
+        raise HTTPException(status_code=402, detail="Books not available.")    
+    bw = borrow.insert().values(
+        book_id = book_id,
+        stu_id = std_id
+    )
+    record = await database.execute(bw) 
+    return {'issue': 'Need to add this to borrow'}
+
+@app.post("/returnbook")
+async def update_inventory(std_id: int, book_name: str):
+    query = students.select()
+    record = await database.fetch_all(query)
+    dic = dict(record)
+    if std_id not in dic:
+        raise HTTPException(status_code=404, detail="Student does not exist. Please check again")
+    query = books.select()
+    record = await database.fetch_all(query)
+    dic = dict(record)
+    book_id = -1
+    for i in dic:
+        if dic[i].lower() == book_name.lower():
+            book_id = i
+            break
+    if book_id == -1:
+        raise HTTPException(status_code=404, detail="Book does not exist. Add new Book")
+    return {'issue': 'Need to add this to borrow'}
