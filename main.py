@@ -216,5 +216,17 @@ async def update_inventory(std_id: int, book_name: str):
             book_id = i
             break
     if book_id == -1:
-        raise HTTPException(status_code=404, detail="Book does not exist. Add new Book")
-    return {'issue': 'Need to add this to borrow'}
+        raise HTTPException(status_code=404, detail="Book does not exist. Please check again")
+    query = borrow.select().where(borrow.c.stu_id == std_id)
+    record = await database.fetch_all(query)
+    flg = 1
+    for i in record:
+        if i[2] == book_id:
+            flg = 0
+    if flg == 1:
+        raise HTTPException(status_code=404, detail="Student does not have the book. Please check again")
+    stmt = inventory.update().values(count_books = inventory.c.count_books + 1 ).where(inventory.c.book_id == book_id)
+    record = await database.execute(stmt)
+    stmt = borrow.delete().where(borrow.c.stu_id == std_id, borrow.c.book_id == book_id)
+    record = await database.execute(stmt)
+    return {'issue': 'Need to add this to return'}
