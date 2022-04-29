@@ -1,85 +1,26 @@
-from enum import unique
 from unicodedata import name
 from fastapi import FastAPI, Depends, HTTPException
-
-
 import sqlalchemy
-from fastapi import FastAPI, Depends
-from pydantic import BaseConfig, Field
-from typing import Optional, List
+from schemas import Books, Students, Inventory, Borrow
 from databases import Database
-
-
-from pydantic import BaseModel, Field
-from typing import Optional, List
-
-
-
-class Books(BaseModel):
-    id: int
-    book_name: str = Field(...)
-
-class Students(BaseModel):
-    id: int
-    name: str = Field(...)
-
-class Inventory(BaseModel):
-    id: int
-    book_id: int
-    count_books: int
-    borrow_count: int
-
-
-class Borrow(BaseModel):
-    id: int
-    book_1: Optional[str] = None
-    book_2: Optional[str] = None
-    book_3: Optional[str] = None
-    
-
-
+ 
+#connecting the database
 DATABASE_URL = 'sqlite:///./library.db'
 
 
 metadata = sqlalchemy.MetaData()
-
 database = Database(DATABASE_URL)
 
-books = sqlalchemy.Table(
-    'books',
-    metadata,
-    sqlalchemy.Column('id', sqlalchemy.Integer, primary_key = True),
-    sqlalchemy.Column('name', sqlalchemy.String(50))
-)
-students = sqlalchemy.Table(
-    'students',
-    metadata,
-    sqlalchemy.Column('id', sqlalchemy.Integer, primary_key = True),
-    sqlalchemy.Column('name', sqlalchemy.String(50))
-)
-inventory = sqlalchemy.Table(
-    'inventory',
-    metadata,
-    sqlalchemy.Column('id', sqlalchemy.Integer, primary_key = True),
-    sqlalchemy.Column('book_id', sqlalchemy.Integer),
-    sqlalchemy.Column('count_books',sqlalchemy.Integer),
-    sqlalchemy.Column('borrow_count',sqlalchemy.Integer)
-)
-
-borrow = sqlalchemy.Table(
-    'borrow',
-    metadata,
-    sqlalchemy.Column('id', sqlalchemy.Integer, primary_key = True),
-    sqlalchemy.Column('stu_id', sqlalchemy.Integer),
-    sqlalchemy.Column('book_id', sqlalchemy.Integer)    
-)
-
 engine = sqlalchemy.create_engine(DATABASE_URL, connect_args = {'check_same_thread':False})
+metadata = sqlalchemy.MetaData(bind = engine, reflect = True)
+books = metadata.tables['books']
+inventory = metadata.tables['inventory']
+students = metadata.tables['students']
+borrow = metadata.tables['borrow']
 
-metadata.create_all(engine)
-
-
+#fast api instance
 app = FastAPI()
+    
 
 @app.on_event("startup")
 async def connect():
@@ -93,29 +34,38 @@ async def connect():
 async def root():
     return {"api added": "goto /docs for api execution"}
 
+
 @app.get("/books")
-async def root():
+async def view_books():
     query = books.select()
     record = await database.fetch_all(query)
     return record
 
 @app.get("/students")
-async def root():
+async def view_students():
     query = students.select()
     record = await database.fetch_all(query)
     return record
 
 @app.get("/viewinventory")
-async def root():
-    query = inventory.select()
-    record = await database.fetch_all(query)
+async def view_inventory():
+    que = sqlalchemy.select(inventory.c.book_id, books.c.name, inventory.c.count_books, inventory.c.borrow_count).join(books)
+    record = await database.fetch_all(que)
     return record
 
 @app.get("/viewborrow")
-async def root():
+async def view_borrow():
     query = borrow.select()
-    record = await database.fetch_all(query)
+    que = sqlalchemy.select(borrow.c.id, books.c.name.label('Book name'), students.c.name.label('Student Name')).join(books, books.c.id == borrow.c.book_id).join(students, students.c.id == borrow.c.stu_id)
+    record = await database.fetch_all(que)
     return record
+
+
+@app.get("/top5")
+async def view_top5():
+    query = sqlalchemy.select(books.c.name, inventory.c.borrow_count).join(inventory, books.c.id == inventory.c.book_id).limit(5).order_by(sqlalchemy.desc(inventory.c.borrow_count))
+    record = await database.fetch_all(query)
+    return record    
 
 @app.post("/addstudent")
 async def add_student(student: Students):
@@ -123,9 +73,7 @@ async def add_student(student: Students):
         name = student.name
     )
     record = await database.execute(stu)
-    query = students.select()
-    record = await database.fetch_all(query)
-    return record
+    return {'Detail':'New Student added successsfully'}
 
 @app.post("/addbook") 
 async def add_book(book: Books):
@@ -133,39 +81,35 @@ async def add_book(book: Books):
         name = book.book_name
     )
     record = await database.execute(book)
-    query = books.select()
-    record = await database.fetch_all(query)
-    return record
+    return {'Detail':'New Book added successsfully'}
     
 
 @app.post("/addinventory")
-async def update_inventory(store: Inventory):
+async def add_update_inventory(store: Inventory):
     bk_id = store.book_id
-    query = books.select()
+    query = books.select().where(books.c.id == store.book_id)
     record = await database.fetch_all(query)
-    dic = dict(record)
-    #print(dic)
-    if bk_id not in dic:
+    #print(record)
+    if record == []:
         raise HTTPException(status_code=404, detail="Book does not exist. Add book")
-    query = inventory.select()
+    query = inventory.select().where(inventory.c.book_id == store.book_id)
     record = await database.fetch_all(query)
-    for i in record:
-        if i[1] == bk_id:
-            query = inventory.update().where(inventory.c.book_id == bk_id).values(count_books = store.count_books)
-            record = await database.execute(query)
-            raise HTTPException(status_code=200, detail = "Book already existed. Changed count of books")
+    if record != []:
+        query = inventory.update().where(inventory.c.book_id == bk_id).values(count_books = store.count_books)
+        record = await database.execute(query)
+        raise HTTPException(status_code=200, detail = "Book already existed. Changed count of books")           
     rde = inventory.insert().values(
         book_id = store.book_id,
         count_books = store.count_books,
         borrow_count = 0
     )
     record = await database.execute(rde)
-    query = inventory.select()
-    record = await database.fetch_all(query)
+    que = sqlalchemy.select(inventory.c.book_id, books.c.name, inventory.c.count_books, inventory.c.borrow_count).join(books)
+    record = await database.fetch_all(que)
     return record
 
 @app.post("/borrowbook")
-async def update_inventory(std_id: int, book_name: str):
+async def update_borrow(std_id: int, book_name: str):
     query = students.select()
     record = await database.fetch_all(query)
     dic = dict(record)
@@ -198,10 +142,10 @@ async def update_inventory(std_id: int, book_name: str):
         stu_id = std_id
     )
     record = await database.execute(bw) 
-    return {'issue': 'Need to add this to borrow'}
+    return {'Detail': 'Book borrowed successfuly'}
 
 @app.post("/returnbook")
-async def update_inventory(std_id: int, book_name: str):
+async def return_book(std_id: int, book_name: str):
     query = students.select()
     record = await database.fetch_all(query)
     dic = dict(record)
@@ -229,4 +173,12 @@ async def update_inventory(std_id: int, book_name: str):
     record = await database.execute(stmt)
     stmt = borrow.delete().where(borrow.c.stu_id == std_id, borrow.c.book_id == book_id)
     record = await database.execute(stmt)
-    return {'issue': 'Need to add this to return'}
+    return {'Detail': 'Book returned successfuly'}
+
+
+@app.get("/test")
+async def test():
+    #que = sqlalchemy.select((inventory.c.book_id, books.c.name), inventory.join(books))#.where(inventory.c.book_id == books.c.book_id)
+    que = sqlalchemy.select(inventory.c.book_id, books.c.name).join(books)
+    record = await database.fetch_all(que)
+    return record
