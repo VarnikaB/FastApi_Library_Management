@@ -1,5 +1,6 @@
 from unicodedata import name
 from fastapi import FastAPI, Depends, HTTPException
+from numpy import std
 import sqlalchemy
 from schemas import Books, Students, Inventory, Borrow
 from databases import Database
@@ -7,13 +8,14 @@ from databases import Database
 #connecting the database
 DATABASE_URL = 'sqlite:///./library.db'
 
-
 metadata = sqlalchemy.MetaData()
 database = Database(DATABASE_URL)
 
-engine = sqlalchemy.create_engine(DATABASE_URL, connect_args = {'check_same_thread':False})
-metadata = sqlalchemy.MetaData(bind = engine, reflect = True)
+engine = sqlalchemy.create_engine(DATABASE_URL)
+metadata = sqlalchemy.MetaData()
+metadata.reflect(bind=engine)
 books = metadata.tables['books']
+
 inventory = metadata.tables['inventory']
 students = metadata.tables['students']
 borrow = metadata.tables['borrow']
@@ -30,6 +32,7 @@ async def connect():
 async def connect():
     await database.disconnect()
 
+#endpoints
 @app.get("/")
 async def root():
     return {"api added": "goto /docs for api execution"}
@@ -109,7 +112,7 @@ async def add_update_inventory(store: Inventory):
     return record
 
 @app.post("/borrowbook")
-async def update_borrow(std_id: int, book_name: str):
+async def update_borrow(std_id: int, book_name: str):   
     query = students.select()
     record = await database.fetch_all(query)
     dic = dict(record)
@@ -129,7 +132,6 @@ async def update_borrow(std_id: int, book_name: str):
     record = await database.fetch_all(query)
     if len(record) == 3:
         raise HTTPException(status_code=402, detail="Student has already approached limit. Cannot borrow more books.")
-    query = inventory.select().where(inventory.c.book_id == book_id)
     stmt = inventory.update().values(borrow_count = inventory.c.borrow_count + 1, count_books = inventory.c.count_books - 1 ).where(inventory.c.book_id == book_id)
     record = await database.execute(stmt)
     query = inventory.select().where(inventory.c.book_id == book_id)
@@ -175,10 +177,3 @@ async def return_book(std_id: int, book_name: str):
     record = await database.execute(stmt)
     return {'Detail': 'Book returned successfuly'}
 
-
-@app.get("/test")
-async def test():
-    #que = sqlalchemy.select((inventory.c.book_id, books.c.name), inventory.join(books))#.where(inventory.c.book_id == books.c.book_id)
-    que = sqlalchemy.select(inventory.c.book_id, books.c.name).join(books)
-    record = await database.fetch_all(que)
-    return record
