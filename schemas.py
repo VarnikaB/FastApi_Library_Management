@@ -1,5 +1,4 @@
 from pydantic import BaseConfig, Field, BaseModel
-from typing import Optional, List
 
 class Books(BaseModel):
     id: int

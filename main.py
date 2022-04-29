@@ -1,6 +1,6 @@
 from unicodedata import name
 from fastapi import FastAPI, Depends, HTTPException
-from numpy import std
+
 import sqlalchemy
 from schemas import Books, Students, Inventory, Borrow
 from databases import Database
